@@ -1,0 +1,45 @@
+# One command to run everything:  docker compose up --build
+# Then open http://localhost:5173  (API docs: http://localhost:8000/docs)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ambulance
+      POSTGRES_PASSWORD: ambulance
+      POSTGRES_DB: smart_ambulance
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ambulance -d smart_ambulance"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://ambulance:ambulance@db:5432/smart_ambulance
+      JWT_SECRET: change-this-to-a-long-random-value-before-deploying
+      CORS_ORIGINS: http://localhost:5173
+      SEED_DEMO_DATA: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_USE_MOCK_DATA: "false"
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_WS_BASE_URL: ws://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
